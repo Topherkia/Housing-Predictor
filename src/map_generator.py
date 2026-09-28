@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 import pandas as pd
 
 try:
@@ -108,6 +107,8 @@ _REFIT_JS = """
 
 
 class MapGenerator:
+    """Class that builds a Folium map and returns raw HTML string output."""
+
     def __init__(self, df: pd.DataFrame, dataset_label: str = "Melbourne Properties"):
         self.df = self._clean_coordinates(df)
         self.dataset_label = dataset_label
@@ -169,7 +170,7 @@ class MapGenerator:
     def _apply_colours(self, df: pd.DataFrame, color_by: str):
         if color_by == "cluster":
             if "Cluster" not in df.columns:
-                raise ValueError("color_by='cluster' needs a 'Cluster' column.")
+                raise ValueError("color_by='cluster' requires a 'Cluster' column.")
             df["_colour"] = df["Cluster"].apply(self._cluster_colour)
             stats = df.groupby("Cluster")["Price"].agg(["count", "median"]) if "Price" in df.columns \
                 else df.groupby("Cluster").size().to_frame("count").assign(median=float("nan"))
@@ -182,9 +183,9 @@ class MapGenerator:
 
         if color_by == "error":
             if "ErrorPct" not in df.columns:
-                raise ValueError("color_by='error' needs an 'ErrorPct' column.")
+                raise ValueError("color_by='error' requires an 'ErrorPct' column.")
             df["_colour"] = df["ErrorPct"].apply(self._error_colour)
-            return "Prediction error (test set)", [(c, label) for _, _, c, label in ERROR_BANDS]
+            return "Prediction error", [(c, label) for _, _, c, label in ERROR_BANDS]
 
         df["_colour"] = df["Price"].apply(self._price_colour) if "Price" in df.columns else "#3388ff"
         return "Sale price", [(c, label) for _, _, c, label in PRICE_BANDS]
@@ -205,15 +206,16 @@ class MapGenerator:
             <b>{title}</b>{rows}
         </div>"""
 
-    def generate_map(
+    def generate_html(
         self,
+        color_by: str = "price",
         cluster: bool = True,
         heatmap: bool = True,
         zoom_start: int = 11,
-        color_by: str = "price"
-    ) -> folium.Map:
+    ) -> str:
+        """Builds the map and returns strictly its HTML representation."""
         if self.df.empty:
-            raise ValueError("No valid spatial properties found in dataset.")
+            raise ValueError("No valid coordinates found to construct map HTML.")
 
         m = folium.Map(location=MELBOURNE_CBD, zoom_start=zoom_start, tiles=None, control_scale=True)
 
@@ -274,9 +276,6 @@ class MapGenerator:
             "{% macro script(this, kwargs) %}" + _REFIT_JS % (m.get_name(), bounds) + "{% endmacro %}"
         )
         m.add_child(refit)
-        return m
 
-    def get_html(self, color_by: str = "price", cluster: bool = True, heatmap: bool = True) -> str:
-        """Renders and returns the Folium map as an HTML string."""
-        folium_map = self.generate_map(color_by=color_by, cluster=cluster, heatmap=heatmap)
-        return folium_map.get_root().render()
+        # Render and return raw HTML string
+        return m.get_root().render()

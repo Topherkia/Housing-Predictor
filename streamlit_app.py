@@ -55,12 +55,6 @@ selected_model_name = st.sidebar.selectbox(
 
 n_clusters = st.sidebar.slider("Number of K-Means Clusters", min_value=2, max_value=10, value=3)
 
-color_mode = st.sidebar.selectbox(
-    "Map Coloring Mode",
-    options=["price", "cluster", "error"],
-    format_func=lambda x: {"price": "Sale Price", "cluster": "K-Means Cluster", "error": "Prediction Error"}[x]
-)
-
 # -------------------------------------------------------------
 # Main Execution Flow
 # -------------------------------------------------------------
@@ -97,7 +91,24 @@ if st.button("🚀 Run Pipeline"):
             cluster_counts.columns = ['Cluster', 'Count']
             st.bar_chart(cluster_counts.set_index('Cluster'))
 
-        # 4. Prepare Features & Model
+        # 4. Generate & Display Interactive Map
+        st.subheader("3. Property Geographical Map")
+        with st.spinner("Rendering Interactive Map..."):
+            # Prepare df with original latitude/longitude coordinates if present
+            map_df = df_clustered.copy()
+            if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+                map_df["Lattitude"] = raw_df["Lattitude"]
+                map_df["Longtitude"] = raw_df["Longtitude"]
+
+            # Initialize generator & get HTML string directly
+            map_gen = MapGenerator(map_df, dataset_label=dataset_path.name)
+            map_html = map_gen.generate_html(color_by="cluster")
+
+            # Load HTML string inside a styled container box
+            with st.container(border=True):
+                components.html(map_html, height=500, scrolling=False)
+
+        # 5. Prepare Features & Model
         X = df_clustered.drop(columns=['Price'])
         y = df_clustered['Price']
 
@@ -133,7 +144,7 @@ if st.button("🚀 Run Pipeline"):
             X, y, test_size=0.2, random_state=42
         )
 
-        # 5. Model Training & Evaluation
+        # 6. Model Training & Evaluation
         with st.spinner(f"Training `{selected_model_name}`..."):
             full_pipeline.fit(X_train, y_train)
             y_pred = full_pipeline.predict(X_test)
@@ -142,36 +153,11 @@ if st.button("🚀 Run Pipeline"):
         rmse = root_mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
 
-        st.subheader(f"3. Model Performance ({selected_model_name})")
+        st.subheader(f"4. Model Performance ({selected_model_name})")
         m1, m2, m3 = st.columns(3)
         m1.metric("MAE", f"${mae:,.2f}")
         m2.metric("RMSE", f"${rmse:,.2f}")
         m3.metric("R² Score", f"{r2:.4f}")
-
-        # Add predictions and error calculations for mapping
-        map_df = df_clustered.copy()
-        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
-            map_df["Lattitude"] = raw_df["Lattitude"]
-            map_df["Longtitude"] = raw_df["Longtitude"]
-
-        # Predict for test set to generate ErrorPct column
-        test_df = X_test.copy()
-        test_df["Price"] = y_test
-        test_df["Predicted"] = y_pred
-        test_df["ErrorPct"] = ((y_pred - y_test) / y_test) * 100
-
-        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
-            test_df["Lattitude"] = raw_df.loc[X_test.index, "Lattitude"]
-            test_df["Longtitude"] = raw_df.loc[X_test.index, "Longtitude"]
-
-        display_df = test_df if color_mode == "error" else map_df
-
-        # 6. Interactive Map Section
-        st.subheader("4. Interactive Map Visualisation")
-        with st.spinner("Generating Interactive Map..."):
-            map_gen = MapGenerator(display_df, dataset_label=f"Dataset ({selected_model_name})")
-            map_html = map_gen.get_html(color_by=color_mode)
-            components.html(map_html, height=600, scrolling=False)
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
