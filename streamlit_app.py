@@ -91,7 +91,7 @@ if st.button("🚀 Run Pipeline"):
             cluster_counts.columns = ['Cluster', 'Count']
             st.bar_chart(cluster_counts.set_index('Cluster'))
 
-        # 4. Generate & Display Interactive Map
+        # 4. Generate & Display Interactive Map (BEFORE model training)
         st.subheader("3. Property Geographical Map")
         with st.spinner("Rendering Interactive Map..."):
             # Prepare df with original latitude/longitude coordinates if present
