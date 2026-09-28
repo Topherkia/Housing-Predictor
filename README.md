@@ -27,7 +27,7 @@ A machine learning project for predicting Melbourne property prices using the **
   * R²
 * Command-line pipeline
 * Interactive Streamlit web application
-* Interactive Folium map of every property in Melbourne (Google Colab compatible)
+* Interactive Folium map of every property in Melbourne
 
 ---
 
@@ -39,8 +39,6 @@ Housing-Predictor/
 ├── app.py                         # Command-line ML pipeline
 ├── streamlit_app.py               # Streamlit web interface
 ├── data_processor.py              # CSV cleaning and preprocessing
-├── map_demo.py                    # Folium map of all properties (lat/lon)
-├── map_demo.ipynb                 # Map demo notebook (Google Colab ready)
 │
 ├── data/
 │   ├── raw/
@@ -52,6 +50,7 @@ Housing-Predictor/
 │
 └── src/
     ├── clustering_stage.py        # K-Means clustering
+    ├── map_generator.py
     ├── model_linear_regression.py
     ├── model_decision_tree.py
     ├── model_random_forest.py
@@ -195,7 +194,7 @@ python app.py
 
 # 🗺️ Map Demo
 
-`map_demo.py` loads an interactive map of Melbourne and plots every property of the
+`map_generator.py` loads an interactive map of Melbourne and plots every property of the
 chosen dataset using its `Lattitude` / `Longtitude` columns.
 
 * Clustered markers (fast, even with all ~13.5k properties) – click one for its details
@@ -217,28 +216,6 @@ In the Streamlit app the map is connected to the ML pipeline:
   where the model is least accurate. Popups show the predicted price and error.
 * **Sidebar map filters** – property type, region, price, rooms, distance to CBD and year built.
 
-Run standalone – the map is written to an HTML file you open in a browser:
-
-```bash
-python map_demo.py                                  # asks which dataset to use
-python map_demo.py --dataset processed              # raw | processed | processed_rm | path/URL
-python map_demo.py -d raw -o raw_map.html --sample 2000
-```
-
-Run on Google Colab:
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Topherkia/Housing-Predictor/blob/map_branch/map_demo.ipynb)
-
-Open `map_demo.ipynb` and choose **Runtime → Run all**. The notebook installs Folium,
-clones the repository, lets you pick the dataset from a dropdown and renders the map
-directly in the output cell. It can also be used from any notebook:
-
-```python
-!pip install -q folium
-from map_demo import load_dataset, build_map
-m = build_map(load_dataset("processed"))
-m
-```
 
 ---
 
@@ -286,6 +263,11 @@ The project separates the machine learning components into individual modules.
                      ┌──────────────────────┐
                      │ Model Evaluation     │
                      │ MAE / RMSE / R²      │
+                     └──────────────────────┘
+                                |
+                                ▼
+                     ┌──────────────────────┐
+                     │    Data Mapping      │
                      └──────────────────────┘
 ```
 
