@@ -7,9 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Import classes from src
 from src.clustering_stage import ClusterStage
+from src.map_generator import MapGenerator
 from src.model_decision_tree import DecisionTreeModel
 from src.model_gradient_boosting import GradientBoostingModel
 from src.model_linear_regression import LinearRegressionModel
@@ -89,7 +91,24 @@ if st.button("🚀 Run Pipeline"):
             cluster_counts.columns = ['Cluster', 'Count']
             st.bar_chart(cluster_counts.set_index('Cluster'))
 
-        # 4. Prepare Features & Model
+        # 4. Generate & Display Interactive Map (BEFORE model training)
+        st.subheader("3. Property Geographical Map")
+        with st.spinner("Rendering Interactive Map..."):
+            # Prepare df with original latitude/longitude coordinates if present
+            map_df = df_clustered.copy()
+            if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+                map_df["Lattitude"] = raw_df["Lattitude"]
+                map_df["Longtitude"] = raw_df["Longtitude"]
+
+            # Initialize generator & get HTML string directly
+            map_gen = MapGenerator(map_df, dataset_label=dataset_path.name)
+            map_html = map_gen.generate_html(color_by="cluster")
+
+            # Load HTML string inside a styled container box
+            with st.container(border=True):
+                components.html(map_html, height=500, scrolling=False)
+
+        # 5. Prepare Features & Model
         X = df_clustered.drop(columns=['Price'])
         y = df_clustered['Price']
 
@@ -125,7 +144,7 @@ if st.button("🚀 Run Pipeline"):
             X, y, test_size=0.2, random_state=42
         )
 
-        # 5. Model Training & Evaluation
+        # 6. Model Training & Evaluation
         with st.spinner(f"Training `{selected_model_name}`..."):
             full_pipeline.fit(X_train, y_train)
             y_pred = full_pipeline.predict(X_test)
@@ -134,7 +153,7 @@ if st.button("🚀 Run Pipeline"):
         rmse = root_mean_squared_error(y_test, y_pred)
         r2 = r2_score(y_test, y_pred)
 
-        st.subheader(f"3. Model Performance ({selected_model_name})")
+        st.subheader(f"4. Model Performance ({selected_model_name})")
         m1, m2, m3 = st.columns(3)
         m1.metric("MAE", f"${mae:,.2f}")
         m2.metric("RMSE", f"${rmse:,.2f}")
