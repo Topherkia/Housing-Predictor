@@ -257,7 +257,8 @@ The project separates the machine learning components into individual modules.
 ## 👤 Authors
 
 **[Kiavash Montazeri](https://github.com/Topherkia)** ,
-**[Eyob Talew](https://github.com/iyyoba)**
+**[Eyob Talew](https://github.com/iyyoba)** , 
+**[Meeraf Mergia Diribssa](https://github.com/megerafe)**
 
 Repository:
 https://github.com/Topherkia/Housing-Predictor
