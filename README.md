@@ -207,6 +207,16 @@ The map is one feature of the project: it is shown in the **Streamlit app**
 (`streamlit run streamlit_app.py`, section "Property Map", using the dataset chosen in the
 sidebar) and can also be run on its own.
 
+In the Streamlit app the map is connected to the ML pipeline:
+
+* **Colour by sale price, K-Means cluster or prediction error.** Cluster and error colours
+  become available after pressing *Run Pipeline*; the legend lists each cluster's size and
+  median price.
+* **Error map** – test-set properties coloured by `(predicted - actual) / actual`
+  (under-estimated / within ±10% / over-estimated), with summary metrics and the suburbs
+  where the model is least accurate. Popups show the predicted price and error.
+* **Sidebar map filters** – property type, region, price, rooms, distance to CBD and year built.
+
 Run standalone – the map is written to an HTML file you open in a browser:
 
 ```bash

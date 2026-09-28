@@ -48,7 +48,9 @@ import pandas as pd
 
 try:
     import folium
+    from branca.element import MacroElement
     from folium.plugins import FastMarkerCluster, Fullscreen, HeatMap
+    from jinja2 import Template
 except ImportError:  # pragma: no cover - helpful message for Colab / fresh envs
     sys.exit("Folium is not installed. Run:  pip install folium   (in Colab: !pip install -q folium)")
 
@@ -100,6 +102,25 @@ PRICE_BANDS = [
     (2_000_000, float("inf"), "#d7191c", "> $2M"),
 ]
 
+# Prediction error bands: (Predicted - Actual) / Actual, in percent
+ERROR_BANDS = [
+    (float("-inf"), -30, "#2166ac", "Under-estimated > 30%"),
+    (-30, -10, "#92c5de", "Under-estimated 10–30%"),
+    (-10, 10, "#1a9850", "Within ±10%"),
+    (10, 30, "#f4a582", "Over-estimated 10–30%"),
+    (30, float("inf"), "#b2182b", "Over-estimated > 30%"),
+]
+
+# Categorical palette for K-Means clusters (up to 10 distinct colours)
+CLUSTER_COLOURS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+                   "#8c564b", "#e377c2", "#17becf", "#bcbd22", "#7f7f7f"]
+
+COLOUR_MODES = {
+    "price": "Sale price",
+    "cluster": "K-Means cluster",
+    "error": "Prediction error",
+}
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -128,6 +149,17 @@ def resolve_dataset(choice: str) -> str:
     return str(path)
 
 
+def clean_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only rows with numeric coordinates inside a Greater-Melbourne / Victoria window."""
+    df = df.copy()
+    df[LAT_COL] = pd.to_numeric(df[LAT_COL], errors="coerce")
+    df[LON_COL] = pd.to_numeric(df[LON_COL], errors="coerce")
+    if "Price" in df.columns:
+        df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
+    df = df.dropna(subset=[LAT_COL, LON_COL])
+    return df[df[LAT_COL].between(-39.0, -37.0) & df[LON_COL].between(143.0, 146.0)]
+
+
 def load_dataset(choice: str = "processed") -> pd.DataFrame:
     """Load the chosen dataset and keep only rows with valid Melbourne coordinates."""
     source = resolve_dataset(choice)
@@ -137,15 +169,8 @@ def load_dataset(choice: str = "processed") -> pd.DataFrame:
     if missing:
         raise ValueError(f"The dataset is missing the coordinate columns: {missing}")
 
-    df[LAT_COL] = pd.to_numeric(df[LAT_COL], errors="coerce")
-    df[LON_COL] = pd.to_numeric(df[LON_COL], errors="coerce")
-    if "Price" in df.columns:
-        df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
-
     before = len(df)
-    # Keep coordinates in a sensible Greater-Melbourne / Victoria window
-    df = df.dropna(subset=[LAT_COL, LON_COL])
-    df = df[df[LAT_COL].between(-39.0, -37.0) & df[LON_COL].between(143.0, 146.0)]
+    df = clean_coordinates(df)
     dropped = before - len(df)
 
     print(f"Loaded {len(df):,} properties from {source}"
@@ -165,6 +190,25 @@ def price_colour(price) -> str:
     return PRICE_BANDS[-1][2]
 
 
+def _band_colour(value, bands) -> str:
+    if value is None or pd.isna(value):
+        return "#888888"
+    for low, high, colour, _ in bands:
+        if low <= value < high:
+            return colour
+    return bands[-1][2]
+
+
+def error_colour(error_pct) -> str:
+    return _band_colour(error_pct, ERROR_BANDS)
+
+
+def cluster_colour(cluster) -> str:
+    if cluster is None or pd.isna(cluster):
+        return "#888888"
+    return CLUSTER_COLOURS[int(cluster) % len(CLUSTER_COLOURS)]
+
+
 def _fmt(value, fmt="{:,.0f}", default="–"):
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return default
@@ -178,7 +222,9 @@ def _fmt(value, fmt="{:,.0f}", default="–"):
 # small enough to render smoothly inside a Colab/Jupyter output cell).
 POPUP_FIELDS = ["Address", "Suburb", "Postcode", "Price", "Type", "Rooms", "Bathroom",
                 "Car", "Landsize", "BuildingArea", "YearBuilt", "Distance",
-                "Regionname", "Date", "Method", "SellerG"]
+                "Regionname", "Date", "Method", "SellerG",
+                # Optional model outputs (added by the Streamlit app after training)
+                "Cluster", "Predicted", "ErrorPct"]
 
 
 def _clean(value):
@@ -215,6 +261,10 @@ function (row) {
         '<b>Distance to CBD:</b> ' + f(row[14], ' km') + '<br>' +
         '<b>Region:</b> ' + f(row[15]) + '<br>' +
         '<b>Sold:</b> ' + f(row[16]) + ' (' + f(row[17]) + ') by ' + f(row[18]) + '<br>' +
+        (row[19] !== null ? '<b>K-Means cluster:</b> ' + row[19] + '<br>' : '') +
+        (row[20] !== null ? '<hr style="margin:4px 0"><b>Predicted price:</b> $' + f(row[20]) +
+            '<br><b>Error:</b> ' + (row[21] > 0 ? '+' : '') + f(row[21], '%') +
+            (row[21] > 0 ? ' (over-estimated)' : ' (under-estimated)') + '<br>' : '') +
         '<span style="color:#888">' + row[0].toFixed(5) + ', ' + row[1].toFixed(5) + '</span>';
     var marker = L.circleMarker(new L.LatLng(row[0], row[1]), {
         radius: 6, color: '#333', weight: 1, fillColor: row[2], fillOpacity: 0.9
@@ -235,21 +285,65 @@ def _marker_rows(df: pd.DataFrame) -> list:
     return rows
 
 
-def _legend_html(n_points: int, dataset_label: str) -> str:
-    items = "".join(
+def _legend_html(n_points: int, dataset_label: str, title: str, items: list) -> str:
+    """items: list of (colour, label) tuples."""
+    rows = "".join(
         f"<div><span style='display:inline-block;width:12px;height:12px;border-radius:50%;"
         f"background:{c};border:1px solid #333;margin-right:6px'></span>{label}</div>"
-        for _, _, c, label in PRICE_BANDS
+        for c, label in items
     )
     return f"""
     <div style="position: fixed; bottom: 24px; left: 24px; z-index: 9999;
-                background: white; padding: 10px 12px; border-radius: 6px;
+                background: white; padding: 10px 12px; border-radius: 6px; max-width: 260px;
                 box-shadow: 0 1px 6px rgba(0,0,0,.3); font: 12px/1.5 Arial, sans-serif;">
         <b>Melbourne Housing</b><br>
         <span style="color:#555">{dataset_label}<br>{n_points:,} properties</span>
         <hr style="margin:6px 0">
-        <b>Sale price</b>{items}
+        <b>{title}</b>{rows}
     </div>"""
+
+
+def _apply_colours(df: pd.DataFrame, color_by: str):
+    """Add the marker colour column and return (legend title, legend items)."""
+    if color_by == "cluster":
+        if "Cluster" not in df.columns:
+            raise ValueError("color_by='cluster' needs a 'Cluster' column (run the pipeline first)")
+        df["_colour"] = df["Cluster"].apply(cluster_colour)
+        stats = df.groupby("Cluster")["Price"].agg(["count", "median"]) if "Price" in df.columns \
+            else df.groupby("Cluster").size().to_frame("count").assign(median=float("nan"))
+        items = [
+            (cluster_colour(c), f"Cluster {int(c)} – {int(r['count']):,} homes"
+             + (f", median ${r['median'] / 1e6:.2f}M" if pd.notna(r["median"]) else ""))
+            for c, r in stats.iterrows()
+        ]
+        return "K-Means cluster", items
+
+    if color_by == "error":
+        if "ErrorPct" not in df.columns:
+            raise ValueError("color_by='error' needs an 'ErrorPct' column (run the pipeline first)")
+        df["_colour"] = df["ErrorPct"].apply(error_colour)
+        return "Prediction error (test set)", [(c, label) for _, _, c, label in ERROR_BANDS]
+
+    df["_colour"] = df["Price"].apply(price_colour) if "Price" in df.columns else "#3388ff"
+    return "Sale price", [(c, label) for _, _, c, label in PRICE_BANDS]
+
+
+# Re-fit the map once its container has a real size (see build_map).
+_REFIT_JS = """
+(function () {
+    var map = %s, bounds = %s, touched = false;
+    function refit() {
+        if (touched) return;
+        map.invalidateSize();
+        if (map.getSize().y > 0) map.fitBounds(bounds);
+    }
+    ['mousedown', 'wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+        map.getContainer().addEventListener(ev, function () { touched = true; });
+    });
+    if (window.ResizeObserver) new ResizeObserver(refit).observe(map.getContainer());
+    window.addEventListener('load', function () { setTimeout(refit, 250); });
+})();
+"""
 
 
 def build_map(
@@ -258,8 +352,17 @@ def build_map(
     cluster: bool = True,
     heatmap: bool = True,
     zoom_start: int = 11,
+    color_by: str = "price",
 ) -> folium.Map:
-    """Create a Folium map of Melbourne with every property in ``df``."""
+    """Create a Folium map of Melbourne with every property in ``df``.
+
+    ``color_by`` selects the marker colours:
+      * ``"price"``   – sale-price bands (default)
+      * ``"cluster"`` – K-Means cluster (needs a ``Cluster`` column)
+      * ``"error"``   – model prediction error (needs ``Predicted`` / ``ErrorPct`` columns)
+    """
+    if df.empty:
+        raise ValueError("No properties to show – the dataset or filters returned 0 rows.")
     m = folium.Map(location=MELBOURNE_CBD, zoom_start=zoom_start,
                    tiles=None, control_scale=True)
     # Base maps. Esri streets is the default because it needs no API key and
@@ -275,7 +378,7 @@ def build_map(
     ).add_to(m)
 
     df = df.copy()
-    df["_colour"] = df["Price"].apply(price_colour) if "Price" in df.columns else "#3388ff"
+    legend_title, legend_items = _apply_colours(df, color_by)
 
     type_col = df["Type"] if "Type" in df.columns else pd.Series("all", index=df.index)
     for ptype, group in df.groupby(type_col):
@@ -304,13 +407,34 @@ def build_map(
             name="Price heat-map", radius=12, blur=15, min_opacity=0.3, show=False,
         ).add_to(m)
 
+    # Neutral grey group bubbles, so their colour isn't confused with the
+    # price / cluster / error colours of the individual markers
+    m.get_root().header.add_child(folium.Element("""
+    <style>
+      .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large
+          { background-color: rgba(90, 90, 90, 0.25) !important; }
+      .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div
+          { background-color: rgba(60, 60, 60, 0.75) !important; color: #fff !important; }
+    </style>"""))
+
     Fullscreen().add_to(m)
     folium.LayerControl(collapsed=False).add_to(m)
-    m.get_root().html.add_child(folium.Element(_legend_html(len(df), dataset_label)))
+    m.get_root().html.add_child(folium.Element(_legend_html(len(df), dataset_label, legend_title, legend_items)))
 
     # Zoom to the actual extent of the data
-    m.fit_bounds([[df[LAT_COL].min(), df[LON_COL].min()],
-                  [df[LAT_COL].max(), df[LON_COL].max()]])
+    bounds = [[float(df[LAT_COL].min()), float(df[LON_COL].min())],
+              [float(df[LAT_COL].max()), float(df[LON_COL].max())]]
+    m.fit_bounds(bounds)
+
+    # When the map is embedded (Streamlit, Colab, Jupyter) its container can
+    # still be 0 px high when Leaflet starts, which leaves the map zoomed out
+    # to the whole world. Re-fit once the container gets its real size, until
+    # the user starts interacting with the map.
+    refit = MacroElement()
+    refit._template = Template(
+        "{% macro script(this, kwargs) %}" + _REFIT_JS % (m.get_name(), bounds) + "{% endmacro %}"
+    )
+    m.add_child(refit)
     return m
 
 
