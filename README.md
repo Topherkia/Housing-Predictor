@@ -256,10 +256,8 @@ This project is licensed under the Educational Use Only License - see the [LICEN
 
 ## 👤 Authors
 
-**Topherkia**
-
-GitHub:
-https://github.com/Topherkia
+**[Kiavash Montazeri](https://github.com/Topherkia)**
+**[Eyob Talew](https://github.com/iyyoba)**
 
 Repository:
 https://github.com/Topherkia/Housing-Predictor
