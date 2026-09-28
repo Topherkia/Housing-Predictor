@@ -7,9 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Import classes from src
 from src.clustering_stage import ClusterStage
+from src.map_generator import MapGenerator
 from src.model_decision_tree import DecisionTreeModel
 from src.model_gradient_boosting import GradientBoostingModel
 from src.model_linear_regression import LinearRegressionModel
@@ -52,6 +54,12 @@ selected_model_name = st.sidebar.selectbox(
 )
 
 n_clusters = st.sidebar.slider("Number of K-Means Clusters", min_value=2, max_value=10, value=3)
+
+color_mode = st.sidebar.selectbox(
+    "Map Coloring Mode",
+    options=["price", "cluster", "error"],
+    format_func=lambda x: {"price": "Sale Price", "cluster": "K-Means Cluster", "error": "Prediction Error"}[x]
+)
 
 # -------------------------------------------------------------
 # Main Execution Flow
@@ -139,6 +147,31 @@ if st.button("🚀 Run Pipeline"):
         m1.metric("MAE", f"${mae:,.2f}")
         m2.metric("RMSE", f"${rmse:,.2f}")
         m3.metric("R² Score", f"{r2:.4f}")
+
+        # Add predictions and error calculations for mapping
+        map_df = df_clustered.copy()
+        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+            map_df["Lattitude"] = raw_df["Lattitude"]
+            map_df["Longtitude"] = raw_df["Longtitude"]
+
+        # Predict for test set to generate ErrorPct column
+        test_df = X_test.copy()
+        test_df["Price"] = y_test
+        test_df["Predicted"] = y_pred
+        test_df["ErrorPct"] = ((y_pred - y_test) / y_test) * 100
+
+        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+            test_df["Lattitude"] = raw_df.loc[X_test.index, "Lattitude"]
+            test_df["Longtitude"] = raw_df.loc[X_test.index, "Longtitude"]
+
+        display_df = test_df if color_mode == "error" else map_df
+
+        # 6. Interactive Map Section
+        st.subheader("4. Interactive Map Visualisation")
+        with st.spinner("Generating Interactive Map..."):
+            map_gen = MapGenerator(display_df, dataset_label=f"Dataset ({selected_model_name})")
+            map_html = map_gen.get_html(color_by=color_mode)
+            components.html(map_html, height=600, scrolling=False)
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
