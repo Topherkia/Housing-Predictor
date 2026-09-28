@@ -7,9 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Import classes from src
 from src.clustering_stage import ClusterStage
+from src.map_generator import MapGenerator
 from src.model_decision_tree import DecisionTreeModel
 from src.model_gradient_boosting import GradientBoostingModel
 from src.model_linear_regression import LinearRegressionModel
@@ -59,107 +61,124 @@ selected_model_name = st.sidebar.selectbox(
 
 n_clusters = st.sidebar.slider("Number of K-Means Clusters", min_value=2, max_value=10, value=3)
 
-current_config = {"dataset": str(dataset_path), "model": selected_model_name, "n_clusters": n_clusters}
-
-
-# -------------------------------------------------------------
-# Pipeline
-# -------------------------------------------------------------
-def run_pipeline(dataset_path: Path, model_name: str, n_clusters: int) -> dict:
-    """Run clustering + regression and return everything the page needs to display."""
-    # Convert path to string for modules requiring string representation
-    str_dataset_path = str(dataset_path)
-
-    # 1. Load Raw Data
-    with st.spinner(f"Loading dataset from `{dataset_path}`..."):
-        raw_df = pd.read_csv(dataset_path)
-    raw_df[ROW_ID] = range(len(raw_df))
-
-    # 2. Data Cleaning
-    drop_cols = ['Address', 'SellerG', 'Date', 'Postcode', 'CouncilArea']
-    df_filtered = raw_df.drop(columns=[col for col in drop_cols if col in raw_df.columns])
-
-    # 3. Clustering Stage
-    with st.spinner("Running K-Means Clustering..."):
-        cluster_stage = ClusterStage(data_path=str_dataset_path, n_clusters=n_clusters, random_state=42)
-        df_clustered, kmeans_model, cluster_scaler = cluster_stage.preprocess_and_cluster(df_filtered)
-
-    cluster_counts = df_clustered['Cluster'].value_counts().sort_index().reset_index()
-    cluster_counts.columns = ['Cluster', 'Count']
-
-    # 4. Prepare Features & Model
-    X = df_clustered.drop(columns=['Price', ROW_ID])
-    y = df_clustered['Price']
-
-    categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
-    numeric_cols = X.select_dtypes(include=['int64', 'float64', 'Int64']).columns.tolist()
-
-    numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median'))
-    ])
-
-    categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
-    ])
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numeric_transformer, numeric_cols),
-            ('cat', categorical_transformer, categorical_cols)
-        ]
-    )
-
-    # Instantiate chosen src class model
-    model_class = MODEL_MAP[model_name]
-    chosen_regressor = model_class(data_path=str_dataset_path).model
-
-    full_pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('regressor', chosen_regressor)
-    ])
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    # 5. Model Training & Evaluation
-    with st.spinner(f"Training `{model_name}`..."):
-        full_pipeline.fit(X_train, y_train)
-        y_pred = full_pipeline.predict(X_test)
-
-    metrics = {
-        "MAE": mean_absolute_error(y_test, y_pred),
-        "RMSE": root_mean_squared_error(y_test, y_pred),
-        "R2": r2_score(y_test, y_pred),
-    }
-
-    # 6. Results for the map: original rows + cluster + test-set predictions
-    map_df = raw_df.set_index(ROW_ID).loc[df_clustered[ROW_ID].values].reset_index()
-    map_df['Cluster'] = df_clustered['Cluster'].values
-    predicted = pd.Series(y_pred, index=X_test.index)
-    map_df['Predicted'] = predicted.reindex(df_clustered.index).round(0).values
-    map_df['ErrorPct'] = ((map_df['Predicted'] - map_df['Price']) / map_df['Price'] * 100).round(1)
-    map_df = clean_coordinates(map_df.drop(columns=[ROW_ID])).reset_index(drop=True)
-
-    return {
-        "config": {"dataset": str(dataset_path), "model": model_name, "n_clusters": n_clusters},
-        "raw_shape": raw_df.drop(columns=[ROW_ID]).shape,
-        "raw_head": raw_df.drop(columns=[ROW_ID]).head(5),
-        "clustered_shape": df_clustered.drop(columns=[ROW_ID]).shape,
-        "clustered_head": df_clustered[['Rooms', 'Price', 'Distance', 'Cluster']].head(5),
-        "cluster_counts": cluster_counts,
-        "metrics": metrics,
-        "map_df": map_df,
-    }
-
+color_mode = st.sidebar.selectbox(
+    "Map Coloring Mode",
+    options=["price", "cluster", "error"],
+    format_func=lambda x: {"price": "Sale Price", "cluster": "K-Means Cluster", "error": "Prediction Error"}[x]
+)
 
 # -------------------------------------------------------------
 # Main Execution Flow
 # -------------------------------------------------------------
 if st.button("🚀 Run Pipeline"):
     try:
-        st.session_state["results"] = run_pipeline(dataset_path, selected_model_name, n_clusters)
+        # Convert path to string for modules requiring string representation
+        str_dataset_path = str(dataset_path)
+
+        # 1. Load Raw Data
+        with st.spinner(f"Loading dataset from `{dataset_path}`..."):
+            raw_df = pd.read_csv(dataset_path)
+
+        st.subheader("1. Dataset Overview")
+        st.write(f"Raw shape: **{raw_df.shape[0]} rows, {raw_df.shape[1]} columns**")
+        st.dataframe(raw_df.head(5), use_container_width=True)
+
+        # 2. Data Cleaning
+        drop_cols = ['Address', 'SellerG', 'Date', 'Postcode', 'CouncilArea']
+        df_filtered = raw_df.drop(columns=[col for col in drop_cols if col in raw_df.columns])
+
+        # 3. Clustering Stage
+        with st.spinner("Running K-Means Clustering..."):
+            cluster_stage = ClusterStage(data_path=str_dataset_path, n_clusters=n_clusters, random_state=42)
+            df_clustered, kmeans_model, cluster_scaler = cluster_stage.preprocess_and_cluster(df_filtered)
+
+        st.subheader("2. Clustering Results")
+        st.write(f"Clustered shape: **{df_clustered.shape[0]} rows, {df_clustered.shape[1]} columns**")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.dataframe(df_clustered[['Rooms', 'Price', 'Distance', 'Cluster']].head(5), use_container_width=True)
+        with col2:
+            cluster_counts = df_clustered['Cluster'].value_counts().reset_index()
+            cluster_counts.columns = ['Cluster', 'Count']
+            st.bar_chart(cluster_counts.set_index('Cluster'))
+
+        # 4. Prepare Features & Model
+        X = df_clustered.drop(columns=['Price'])
+        y = df_clustered['Price']
+
+        categorical_cols = X.select_dtypes(include=['object', 'category']).columns.tolist()
+        numeric_cols = X.select_dtypes(include=['int64', 'float64', 'Int64']).columns.tolist()
+
+        numeric_transformer = Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy='median'))
+        ])
+
+        categorical_transformer = Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+        ])
+
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('num', numeric_transformer, numeric_cols),
+                ('cat', categorical_transformer, categorical_cols)
+            ]
+        )
+
+        # Instantiate chosen src class model
+        model_class = MODEL_MAP[selected_model_name]
+        chosen_regressor = model_class(data_path=str_dataset_path).model
+
+        full_pipeline = Pipeline(steps=[
+            ('preprocessor', preprocessor),
+            ('regressor', chosen_regressor)
+        ])
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        # 5. Model Training & Evaluation
+        with st.spinner(f"Training `{selected_model_name}`..."):
+            full_pipeline.fit(X_train, y_train)
+            y_pred = full_pipeline.predict(X_test)
+
+        mae = mean_absolute_error(y_test, y_pred)
+        rmse = root_mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+
+        st.subheader(f"3. Model Performance ({selected_model_name})")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("MAE", f"${mae:,.2f}")
+        m2.metric("RMSE", f"${rmse:,.2f}")
+        m3.metric("R² Score", f"{r2:.4f}")
+
+        # Add predictions and error calculations for mapping
+        map_df = df_clustered.copy()
+        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+            map_df["Lattitude"] = raw_df["Lattitude"]
+            map_df["Longtitude"] = raw_df["Longtitude"]
+
+        # Predict for test set to generate ErrorPct column
+        test_df = X_test.copy()
+        test_df["Price"] = y_test
+        test_df["Predicted"] = y_pred
+        test_df["ErrorPct"] = ((y_pred - y_test) / y_test) * 100
+
+        if "Lattitude" in raw_df.columns and "Longtitude" in raw_df.columns:
+            test_df["Lattitude"] = raw_df.loc[X_test.index, "Lattitude"]
+            test_df["Longtitude"] = raw_df.loc[X_test.index, "Longtitude"]
+
+        display_df = test_df if color_mode == "error" else map_df
+
+        # 6. Interactive Map Section
+        st.subheader("4. Interactive Map Visualisation")
+        with st.spinner("Generating Interactive Map..."):
+            map_gen = MapGenerator(display_df, dataset_label=f"Dataset ({selected_model_name})")
+            map_html = map_gen.get_html(color_by=color_mode)
+            components.html(map_html, height=600, scrolling=False)
+
     except Exception as e:
         st.session_state.pop("results", None)
         st.error(f"An error occurred: {e}")
