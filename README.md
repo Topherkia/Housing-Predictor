@@ -251,7 +251,7 @@ The project separates the machine learning components into individual modules.
 
 ## 📄 License
 
-This project is licensed under the Educational Use Only License - see the [LICENSE](LICENSE) file for details.
+* This project is licensed under the Educational Use Only License - see the [LICENSE](LICENSE) file for details.
 ---
 
 ## 👤 Authors
