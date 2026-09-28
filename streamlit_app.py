@@ -142,3 +142,41 @@ if st.button("🚀 Run Pipeline"):
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
+# -------------------------------------------------------------
+# Property Map (Folium) – uses the dataset selected in the sidebar
+# -------------------------------------------------------------
+from map_demo import build_map, load_dataset
+
+
+@st.cache_data(show_spinner=False)
+def render_property_map(path_str: str, heatmap: bool) -> tuple[str, int]:
+    """Build the Folium map once per dataset/option and cache the HTML."""
+    map_df = load_dataset(str(PROJECT_ROOT / path_str))
+    folium_map = build_map(map_df, dataset_label=Path(path_str).name, heatmap=heatmap)
+    return folium_map.get_root().render(), len(map_df)
+
+
+st.divider()
+st.subheader("🗺️ Property Map")
+st.write("All properties of the selected dataset, placed by latitude and longitude. "
+         "Zoom in to split the clusters and click a marker for its details.")
+
+map_col1, map_col2 = st.columns([1, 3])
+with map_col1:
+    show_map = st.toggle("Show map", value=True)
+with map_col2:
+    map_heatmap = st.checkbox("Include price heat-map layer", value=True)
+
+if show_map:
+    try:
+        with st.spinner("Building the map..."):
+            map_html, n_properties = render_property_map(str(dataset_path), map_heatmap)
+        st.caption(f"{n_properties:,} properties from `{dataset_path}`")
+        if hasattr(st, "iframe"):          # Streamlit >= 1.52
+            st.iframe(map_html, height=650)
+        else:                              # older Streamlit versions
+            import streamlit.components.v1 as components
+            components.html(map_html, height=650)
+    except Exception as e:
+        st.error(f"Could not build the map: {e}")

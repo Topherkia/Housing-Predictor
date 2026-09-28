@@ -203,7 +203,11 @@ chosen dataset using its `Lattitude` / `Longtitude` columns.
 * Toggle layers for House / Unit / Townhouse and an optional price heat-map
 * Several base maps (Esri streets, light grey, satellite, OpenStreetMap) and full-screen mode
 
-Run locally – the map is written to an HTML file you open in a browser:
+The map is one feature of the project: it is shown in the **Streamlit app**
+(`streamlit run streamlit_app.py`, section "Property Map", using the dataset chosen in the
+sidebar) and can also be run on its own.
+
+Run standalone – the map is written to an HTML file you open in a browser:
 
 ```bash
 python map_demo.py                                  # asks which dataset to use
