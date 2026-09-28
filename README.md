@@ -142,6 +142,9 @@ Feature Filtering
 K-Means Clustering
     │
     ▼
+Map HTML Generation (MapGenerator)
+    │
+    ▼
 Feature Preparation
     │
     ▼
@@ -224,50 +227,45 @@ In the Streamlit app the map is connected to the ML pipeline:
 The project separates the machine learning components into individual modules.
 
 ```text
-                     ┌──────────────────────┐
-                     │    CSV Dataset       │
+┌──────────────────────┐
+                     │     CSV Dataset      │
                      └──────────┬───────────┘
                                 │
                                 ▼
                      ┌──────────────────────┐
-                     │   Data Processor     │
-                     │ data_processor.py    │
+                     │  Feature Filtering   │
+                     │  & Data Cleaning     │
                      └──────────┬───────────┘
                                 │
                                 ▼
                      ┌──────────────────────┐
-                     │   Feature Cleaning   │
-                     │ & Preprocessing      │
+                     │       K-Means        │
+                     │      Clustering      │
                      └──────────┬───────────┘
                                 │
                                 ▼
                      ┌──────────────────────┐
-                     │    K-Means           │
-                     │    Clustering        │
+                     │  Map HTML Generation │
+                     │  (MapGenerator Class)│
                      └──────────┬───────────┘
                                 │
                                 ▼
                      ┌──────────────────────┐
-                     │ Regression Pipeline  │
+                     │  Regression Pipeline │
                      └──────────┬───────────┘
                                 │
               ┌─────────────────┼─────────────────┐
-              │        │        │        │         │
-              ▼        ▼        ▼        ▼         ▼
+              │        │        │        │        │
+              ▼        ▼        ▼        ▼        ▼
            Linear   Decision  Random   Gradient  XGBoost
-          Regression  Tree     Forest   Boosting
-              │        │        │        │         │
-              └────────┴────────┴────────┴─────────┘
+          Regression  Tree    Forest   Boosting
+              │        │        │        │        │
+              └────────┴────────┴────────┴────────┘
                                 │
                                 ▼
                      ┌──────────────────────┐
-                     │ Model Evaluation     │
-                     │ MAE / RMSE / R²      │
-                     └──────────────────────┘
-                                |
-                                ▼
-                     ┌──────────────────────┐
-                     │    Data Mapping      │
+                     │   Model Evaluation   │
+                     │    MAE / RMSE / R²   │
                      └──────────────────────┘
 ```
 
