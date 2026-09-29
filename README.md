@@ -35,27 +35,37 @@ A machine learning project for predicting Melbourne property prices using the **
 
 ```text
 Housing-Predictor/
-│
-├── app.py                         # Command-line ML pipeline
-├── streamlit_app.py               # Streamlit web interface
-├── data_processor.py              # CSV cleaning and preprocessing
-│
-├── data/
-│   ├── raw/
-│   │   └── melb_data.csv          # Original dataset
-│   │
-│   └── processed/
-│       ├── melb_data_processed.csv
-│       └── melb_data_processed_rm.csv
-│
-└── src/
-    ├── clustering_stage.py        # K-Means clustering
-    ├── map_generator.py
-    ├── model_linear_regression.py
-    ├── model_decision_tree.py
-    ├── model_random_forest.py
-    ├── model_gradient_boosting.py
-    └── model_xgboost.py
+├── Docs
+│   ├── Melbourne Housing Price Predictor.pptx
+│   └── Melbourne_housing 2.csv
+├── LICENSE
+├── README.md
+├── app.py
+├── data
+│   ├── processed
+│   │   ├── melb_data_processed.csv
+│   │   └── melb_data_processed_rm.csv
+│   └── raw
+│       └── melb_data.csv
+├── data_processor.py
+├── requirements.txt
+├── src
+│   ├── __pycache__
+│   │   ├── clustering_stage.cpython-314.pyc
+│   │   ├── map_generator.cpython-314.pyc
+│   │   ├── model_decision_tree.cpython-314.pyc
+│   │   ├── model_gradient_boosting.cpython-314.pyc
+│   │   ├── model_linear_regression.cpython-314.pyc
+│   │   ├── model_random_forest.cpython-314.pyc
+│   │   └── model_xgboost.cpython-314.pyc
+│   ├── clustering_stage.py
+│   ├── map_generator.py
+│   ├── model_decision_tree.py
+│   ├── model_gradient_boosting.py
+│   ├── model_linear_regression.py
+│   ├── model_random_forest.py
+│   └── model_xgboost.py
+└── streamlit_app.py
 ```
 
 ---
