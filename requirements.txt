@@ -1,0 +1,2 @@
+#pip install these:
+pandas numpy scikit-learn xgboost streamlit folium
