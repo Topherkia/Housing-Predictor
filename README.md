@@ -227,7 +227,7 @@ In the Streamlit app the map is connected to the ML pipeline:
 The project separates the machine learning components into individual modules.
 
 ```text
-┌──────────────────────┐
+                     ┌──────────────────────┐
                      │     CSV Dataset      │
                      └──────────┬───────────┘
                                 │
