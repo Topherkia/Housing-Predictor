@@ -55,13 +55,6 @@ Housing-Predictor/
 ├── models
 ├── requirements.txt
 ├── src
-│   │   ├── clustering_stage.cpython-314.pyc
-│   │   ├── map_generator.cpython-314.pyc
-│   │   ├── model_decision_tree.cpython-314.pyc
-│   │   ├── model_gradient_boosting.cpython-314.pyc
-│   │   ├── model_linear_regression.cpython-314.pyc
-│   │   ├── model_random_forest.cpython-314.pyc
-│   │   └── model_xgboost.cpython-314.pyc
 │   ├── ai_housing_assistant.py
 │   ├── clustering_stage.py
 │   ├── hyperparameter_tuning.py
