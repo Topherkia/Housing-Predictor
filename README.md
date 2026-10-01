@@ -166,7 +166,7 @@ The implementation also handles:
 - JSON extraction from model output
 - Input truncation
 
-### 🖥️ Hardware
+## 🖥️ Hardware
 
 Running a 3B-parameter language model locally can require significant memory.
 
