@@ -1,180 +1,125 @@
-import json
-import re
+from __future__ import annotations
 
-import torch
+from typing import Any
 
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
+import pandas as pd
+
+from src.qwen import HOUSING_FEATURES
 
 
-class QwenModel:
+class HousingAIAssistant:
+    """Coordinate Qwen, XGBoost and the local RAG system."""
 
     def __init__(
         self,
-        model_name=(
-            "Qwen/Qwen2.5-3B-Instruct"
-        ),
+        xgboost_model,
+        qwen_model,
+        rag,
+        feature_medians: dict[str, float],
     ):
+        self.xgboost_model = xgboost_model
+        self.qwen_model = qwen_model
+        self.rag = rag
+        self.feature_medians = feature_medians
 
-        self.model_name = model_name
-
-        self.tokenizer = (
-            AutoTokenizer.from_pretrained(
-                model_name
-            )
-        )
-
-        if torch.cuda.is_available():
-
-            self.model = (
-                AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    torch_dtype=torch.float16,
-                    device_map="auto",
-                )
-            )
-
-        else:
-
-            self.model = (
-                AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    torch_dtype=torch.float32,
-                )
-            )
-
-            self.model.to("cpu")
-
-    def generate(
-        self,
-        prompt,
-        max_new_tokens=350,
-    ):
-
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a Melbourne housing "
-                    "machine-learning assistant. "
-                    "Use only the supplied information. "
-                    "Do not invent property data."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
+        missing_medians = [
+            feature
+            for feature in HOUSING_FEATURES
+            if feature not in feature_medians
         ]
 
-        prompt_text = (
-            self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True,
+        if missing_medians:
+            raise ValueError(
+                "Missing training medians for: "
+                + ", ".join(missing_medians)
             )
-        )
-
-        inputs = self.tokenizer(
-            prompt_text,
-            return_tensors="pt",
-        )
-
-        inputs = {
-            key: value.to(
-                self.model.device
-            )
-            for key, value in inputs.items()
-        }
-
-        with torch.no_grad():
-
-            output = (
-                self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=False,
-                )
-            )
-
-        generated = (
-            output[0][
-                inputs["input_ids"].shape[1]:
-            ]
-        )
-
-        return (
-            self.tokenizer.decode(
-                generated,
-                skip_special_tokens=True,
-            )
-            .strip()
-        )
 
     def extract_features(
         self,
-        user_query,
-    ):
+        query: str,
+    ) -> tuple[dict[str, float], list[str]]:
+        """
+        Extract model features and fill omitted values using training medians.
+        """
 
-        prompt = f"""
-Extract housing prediction inputs from this user request.
-
-Return ONLY valid JSON.
-
-The JSON must contain exactly these keys:
-
-Rooms
-Distance
-Bedroom2
-Bathroom
-Car
-Landsize
-BuildingArea
-
-Use null when the user did not provide a value.
-
-DO NOT guess missing values.
-
-User request:
-
-{user_query}
-"""
-
-        raw = self.generate(
-            prompt,
-            max_new_tokens=180,
+        extracted = self.qwen_model.extract_features(
+            query
         )
 
-        match = re.search(
-            r"\{.*\}",
-            raw,
-            re.DOTALL,
+        features: dict[str, float] = {}
+        missing_features: list[str] = []
+
+        for feature in HOUSING_FEATURES:
+            value = extracted.get(feature)
+
+            if value is None:
+                features[feature] = float(
+                    self.feature_medians[feature]
+                )
+                missing_features.append(feature)
+            else:
+                features[feature] = float(value)
+
+        return features, missing_features
+
+    def predict(
+        self,
+        features: dict[str, float],
+    ) -> float:
+        """Run the numerical XGBoost model."""
+
+        X = pd.DataFrame(
+            [
+                [
+                    features[feature]
+                    for feature in HOUSING_FEATURES
+                ]
+            ],
+            columns=HOUSING_FEATURES,
         )
 
-        if not match:
+        prediction = self.xgboost_model.predict(X)
 
+        return float(prediction[0])
+
+    def answer(
+        self,
+        query: str,
+    ) -> dict[str, Any]:
+        """Complete natural-language housing prediction workflow."""
+
+        if not query or not query.strip():
             raise ValueError(
-                "Qwen did not return valid JSON.\n"
-                f"Raw response:\n{raw}"
+                "A housing question is required."
             )
 
-        data = json.loads(
-            match.group(0)
+        features, missing_features = (
+            self.extract_features(query)
         )
 
-        keys = [
-            "Rooms",
-            "Distance",
-            "Bedroom2",
-            "Bathroom",
-            "Car",
-            "Landsize",
-            "BuildingArea",
-        ]
+        prediction = self.predict(
+            features
+        )
+
+        retrieved = self.rag.retrieve(
+            query,
+            k=4,
+        )
+
+        explanation = (
+            self.qwen_model.explain_prediction(
+                query=query,
+                features=features,
+                prediction=prediction,
+                retrieved_documents=retrieved,
+                missing_features=missing_features,
+            )
+        )
 
         return {
-            key: data.get(key)
-            for key in keys
+            "prediction": prediction,
+            "features": features,
+            "missing_filled": missing_features,
+            "retrieved": retrieved,
+            "explanation": explanation,
         }
