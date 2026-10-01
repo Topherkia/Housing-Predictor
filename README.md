@@ -129,7 +129,7 @@ data/raw/melb_data.csv
 ---
 
 
-# 🤖 Machine Learning Pipeline
+# 🖥️ Machine Learning Pipeline
 
 The main pipeline is implemented in:
 
@@ -232,55 +232,97 @@ In the Streamlit app the map is connected to the ML pipeline:
 
 ---
 
-# 🧠 Project Architecture
+# 🧠 AI-Enhanced Architecture
 
-The project separates the machine learning components into individual modules.
+The project now combines traditional machine learning with
+hyperparameter optimization, explainable AI, retrieval-augmented
+generation and a local Qwen language model.
 
 ```text
-                     ┌──────────────────────┐
-                     │     CSV Dataset      │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Feature Filtering   │
-                     │  & Data Cleaning     │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │       K-Means        │
-                     │      Clustering      │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Map HTML Generation │
-                     │  (MapGenerator Class)│
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Regression Pipeline │
-                     └──────────┬───────────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │        │        │        │        │
-              ▼        ▼        ▼        ▼        ▼
-           Linear   Decision  Random   Gradient  XGBoost
-          Regression  Tree    Forest   Boosting
-              │        │        │        │        │
-              └────────┴────────┴────────┴────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │   Model Evaluation   │
-                     │    MAE / RMSE / R²   │
-                     └──────────────────────┘
+                         CSV Dataset
+                              │
+                              ▼
+                       Data Processing
+                              │
+                              ▼
+                       Train/Test Split
+                         /          \
+                        /            \
+                       ▼              ▼
+              Training Data       Test Data
+                    │                 │
+                    ▼                 │
+             K-Means Fitting         │
+                    │                 │
+                    ▼                 │
+              Preprocessing          │
+                    │                 │
+                    ▼                 │
+             Optuna XGBoost           │
+                    │                 │
+                    ▼                 │
+             Tuned XGBoost            │
+                    │                 │
+                    └──────┬──────────┘
+                           │
+                           ▼
+                    Model Evaluation
+                     MAE / RMSE / R²
+                           │
+                           ▼
+                         SHAP
+                           │
+                           │
+User ──► Qwen ─────────────┤
+        │                  │
+        │                  ▼
+        │             XGBoost
+        │                  │
+        ▼                  ▼
+       RAG              Prediction
+        │                  │
+        └────────┬─────────┘
+                 ▼
+               Qwen
+                 │
+                 ▼
+        AI Housing Explanation
+                 │
+                 ▼
+             Streamlit
 ```
 
 ---
 
+# 🤖 AI Housing Assistant
+
+The project includes an optional AI housing assistant combining:
+
+- Qwen
+- XGBoost
+- SHAP
+- RAG
+- FAISS
+- Sentence Transformers
+
+The user can enter a natural-language request such as:
+
+> Estimate the price of a 4 bedroom property with 2 bathrooms and 600 square metres of land.
+
+Qwen extracts structured features:
+
+```json
+{
+    "Rooms": 4,
+    "Distance": null,
+    "Bedroom2": null,
+    "Bathroom": 2,
+    "Car": null,
+    "Landsize": 600,
+    "BuildingArea": null
+}
+```
+---
 
 # 📌 Notes
 
