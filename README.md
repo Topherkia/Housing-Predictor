@@ -1,60 +1,82 @@
-# 🏠 Melbourne Housing Price Predictor
+# 🏡 Real Estate Housing Price Predictor & AI Chat Assistant
 
-A machine learning project for predicting Melbourne property prices using the **Melbourne Housing dataset**. The project includes data cleaning and preprocessing, K-Means clustering, multiple regression models, model evaluation, and an interactive Streamlit interface.
-
-## ✨ Features
-
-* CSV data preprocessing and validation
-* Automatic handling of missing and invalid values
-* Optional removal of unusually high property prices
-* Numerical missing-value imputation using the median
-* Categorical missing-value imputation using the most frequent value
-* Date parsing and feature engineering
-* Duplicate-row removal
-* K-Means clustering
-* Multiple regression algorithms:
-
-  * Linear Regression
-  * Decision Tree Regressor
-  * Random Forest Regressor
-  * Gradient Boosting Regressor
-  * XGBoost Regressor
-* One-hot encoding of categorical features
-* Model evaluation using:
-
-  * MAE
-  * RMSE
-  * R²
-* Command-line pipeline
-* Interactive Streamlit web application
-* Interactive Folium map of every property in Melbourne
+An end-to-end machine learning and LLM ecosystem designed for real estate price valuation, tabular market analysis, and intelligent real estate conversational assistance. The platform combines traditional ML/DL regression algorithms (XGBoost, Random Forest, Neural Networks) with Retrieval-Augmented Generation (RAG) and fine-tuned **Qwen** large language models to deliver accurate market predictions alongside context-aware AI guidance.
 
 ---
 
-## 📁 Project Structure
+## ✨ Features
+
+- **📊 Tabular Price Prediction Engine**: Multi-model regression pipeline including XGBoost, Random Forest, Gradient Boosting, and Custom PyTorch/Neural Network architectures.
+- **💬 Real Estate AI Chat Assistant**: An interactive conversational assistant powered by a fine-tuned **Qwen** LLM (e.g., `Qwen2.5 / Qwen2.5-Coder`) tailored for real estate domain knowledge, market insights, and property queries.
+- **📚 RAG (Retrieval-Augmented Generation) System**: Vector search framework (using FAISS / Chroma / Qdrant) that ingests neighborhood datasets, market reports, and property listings to provide grounded, factual context to the Qwen LLM.
+- **🔄 End-to-End Data Pipeline**: Automated data cleaning, feature engineering, missing value imputation, spatial coordinate processing, and categorical encoding.
+- **⚡ Interactive Web Application / Dashboard**: User-friendly UI built with Streamlit / FastAPI / React to interact with both the price predictor and the RAG-assisted chat interface.
+- **🛠️ Fine-Tuning & Evaluation**: Scripts for Low-Rank Adaptation (LoRA / QLoRA) fine-tuning of Qwen models, complete with loss tracking, prompt templates, and benchmark evaluation metrics.
+
+---
+
+## 🏗️ System Architecture & Pipeline
+
+```text                   
+                                    ┌───────────────────────────┐
+                                    │  Raw Housing & Market     │
+                                    │       Data Sources        │
+                                    └─────────────┬─────────────┘
+                                                    │
+                            ┌───────────────────────┴───────────────────────┐
+                            ▼                                               ▼
+                [ Tabular Data Stream ]                         [ Text & Unstructured ]
+                            │                                               │
+            ┌──────────────┴──────────────┐                 ┌──────────────┴──────────────┐
+            │ Feature Eng & Preprocessing │                 │ Chunking & Vector Embeddings │
+            └──────────────┬──────────────┘                 └──────────────┬──────────────┘
+                            │                                               │
+            ┌──────────────┴──────────────┐                 ┌──────────────┴──────────────┐
+            │   Regression Model Suite    │                 │    Vector DB Indexing       │
+            │  (XGBoost / Qwen / PyTorch) │                 │     (FAISS / Chroma)        │
+            └──────────────┬──────────────┘                 └──────────────┬──────────────┘
+                            │                                               │
+                            ▼                                               ▼
+            ┌─────────────────────────────┐                 ┌─────────────────────────────┐
+            │   Property Price Estimate   │                 │   Contextual RAG Retrieval  │
+            └──────────────┬──────────────┘                 └──────────────┬──────────────┘
+                            │                                               │
+                            └───────────────────────┬───────────────────────┘
+                                                    ▼
+                                    ┌─────────────────────────────┐
+                                    │    Fine-Tuned Qwen Assistant│
+                                    └──────────────┬──────────────┘
+                                                    │
+                                                    ▼
+                                    ┌─────────────────────────────┐
+                                    │ Interactive Web Application │
+                                    └─────────────────────────────┘
+
+```
+
+---
+
+## 📂 Project Structure
 
 ```text
 Housing-Predictor/
 ├── Docs
 │   └── Melbourne_housing 2.csv
-├── LICENSE
-├── README.md
-├── app.py
 ├── data
 │   ├── processed
 │   │   ├── melb_data_processed.csv
 │   │   └── melb_data_processed_rm.csv
 │   └── raw
 │       └── melb_data.csv
-├── data_processor.py
 ├── knowledge_base
 │   ├── features.md
 │   ├── melbourn_housing.md
 │   ├── methodology.md
 │   └── model.md
 ├── models
-├── requirements.txt
+│   └── xgboost_best_params.json
 ├── src
+│   ├── __init__.py
 │   ├── ai_housing_assistant.py
 │   ├── clustering_stage.py
 │   ├── hyperparameter_tuning.py
@@ -67,10 +89,17 @@ Housing-Predictor/
 │   ├── qwen.py
 │   ├── rag.py
 │   ├── shap_explainer.py
+│   ├── test_shap.py
 │   ├── train_ai_model.py
 │   └── tuned_xgboost.py
-├── streamlit_app.py
-└── test_shap.py
+|
+├── LICENSE
+├── README.md
+├── requirements.txt
+├── data_processor.py
+├── app.py
+└── streamlit_app.py
+
 
 ```
 
@@ -83,10 +112,21 @@ The project is written in **Python** and uses:
 * [Python](https://www.python.org/)
 * [Pandas](https://pandas.pydata.org/)
 * [NumPy](https://numpy.org/)
+* [Matplotlib](https://matplotlib.org/)
 * [Scikit-learn](https://scikit-learn.org/)
 * [XGBoost](https://xgboost.readthedocs.io/)
 * [Streamlit](https://streamlit.io/)
 * [Folium](https://python-visualization.github.io/folium/)
+* [SHAP](https://shap.readthedocs.io/)
+* [Optuna](https://optuna.org/)
+* [FAISS](https://github.com/facebookresearch/faiss)
+* [Sentence Transformers](https://www.sbert.net/)
+* [Qwen 2.5 LLM](https://modelscope.cn/models/qwen)
+* [LoRA / QLoRA](https://arxiv.org/abs/2106.09685)
+* [Retrieval-Augmented Generation (RAG)](https://arxiv.org/abs/2005.11401)
+* [Joblib](https://joblib.readthedocs.io/)
+* [Torch](https://pytorch.org/)
+
 
 ---
 
@@ -146,40 +186,48 @@ app.py
 The pipeline performs the following steps:
 
 ```text
-CSV Dataset
-    │
-    ▼
-Data Loading
-    │
-    ▼
-Feature Filtering
-    │
-    ▼
-K-Means Clustering
-    │
-    ▼
-Map HTML Generation (MapGenerator)
-    │
-    ▼
-Feature Preparation
-    │
-    ▼
-Missing-Value Imputation
-    │
-    ▼
-Categorical Encoding
-    │
-    ▼
-Train/Test Split
-    │
-    ▼
-Regression Model
-    │
-    ▼
-Predictions
-    │
-    ▼
-Model Evaluation
+                            CSV Dataset
+                                 │
+                                 ▼
+                            Data Loading
+                                 │
+                                 ▼
+                         Feature Filtering
+                                 │
+                     ┌───────────┴───────────┐
+                     ▼                       ▼
+            K-Means Clustering       Feature Preparation
+                     │                       │
+                     ▼                       ▼
+            Map HTML Generation    Missing-Value Imputation
+              (MapGenerator)                 │
+                                             ▼
+                                    Categorical Encoding
+                                             │
+                                             ▼
+                                      Train/Test Split
+                                             │
+                                             ▼
+                                      Regression Model
+                                             │
+                                             ▼
+                                        Predictions
+                                             │
+                                             ▼
+                                      Model Evaluation
+            ========================================================================
+            LLM & RAG INTEGRATION PIPELINE
+            [ Unstructured Docs / Reports ]               [ Conversational QA Data ]
+                        │                                         │
+                        ▼                                         ▼
+            Chunking & Vector Embeddings                   Qwen Fine-Tuning (QLoRA)
+                        │                                         │
+                        ▼                                         ▼
+                Vector DB (FAISS/Chroma)                    Fine-Tuned Qwen Weights
+                        │                                         │
+                        └────────────────────┬────────────────────┘
+                                                ▼
+                                RAG Contextual Chat Assistant
 ```
 
 ---
