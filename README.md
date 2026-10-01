@@ -129,7 +129,7 @@ data/raw/melb_data.csv
 ---
 
 
-# 🤖 Machine Learning Pipeline
+# 🖥️ Machine Learning Pipeline
 
 The main pipeline is implemented in:
 
