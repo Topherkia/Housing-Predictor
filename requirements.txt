@@ -1,2 +1,14 @@
 #pip install these:
-pandas numpy scikit-learn xgboost streamlit folium
+pandas
+numpy
+scikit-learn
+xgboost
+streamlit
+folium
+# Fine-tuning and model evaluation
+optuna
+shap
+sentence-transformers
+faiss-cpu
+transformers
+torch
