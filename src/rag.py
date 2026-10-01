@@ -3,89 +3,165 @@ from pathlib import Path
 import faiss
 import numpy as np
 
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import (
+    SentenceTransformer,
+)
 
 
 class HousingRAG:
 
     def __init__(
         self,
-        knowledge_dir="knowledge_base"
+        knowledge_dir="knowledge_base",
+        embedding_model=(
+            "sentence-transformers/"
+            "all-MiniLM-L6-v2"
+        ),
     ):
 
-        self.knowledge_dir = Path(knowledge_dir)
+        self.knowledge_dir = Path(
+            knowledge_dir
+        )
 
-        self.embedding_model = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2"
+        self.embedding_model = (
+            SentenceTransformer(
+                embedding_model
+            )
         )
 
         self.documents = []
         self.index = None
 
-        self.load_documents()
-        self.build_index()
+        self._load_documents()
+        self._build_index()
 
-    def load_documents(self):
+    def _load_documents(self):
 
-        for file in self.knowledge_dir.glob("*.md"):
+        self.documents = []
 
-            text = file.read_text(
+        for path in sorted(
+            self.knowledge_dir.glob(
+                "*.md"
+            )
+        ):
+
+            text = path.read_text(
                 encoding="utf-8"
+            ).strip()
+
+            if not text:
+                continue
+
+            # Split documents into chunks.
+            chunks = [
+                chunk.strip()
+                for chunk in text.split(
+                    "\n\n"
+                )
+                if chunk.strip()
+            ]
+
+            for chunk in chunks:
+
+                self.documents.append(
+                    {
+                        "source":
+                            path.name,
+
+                        "text":
+                            chunk,
+                    }
+                )
+
+        if not self.documents:
+
+            raise FileNotFoundError(
+                "No knowledge-base Markdown "
+                f"files found in "
+                f"{self.knowledge_dir}"
             )
 
-            self.documents.append({
-                "source": file.name,
-                "text": text
-            })
-
-    def build_index(self):
+    def _build_index(self):
 
         texts = [
-            document["text"]
-            for document in self.documents
+            doc["text"]
+            for doc in self.documents
         ]
 
-        embeddings = self.embedding_model.encode(
-            texts,
-            convert_to_numpy=True
+        embeddings = (
+            self.embedding_model.encode(
+                texts,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+            )
+            .astype(
+                np.float32
+            )
         )
 
-        embeddings = embeddings.astype(
-            np.float32
+        dimension = (
+            embeddings.shape[1]
         )
 
-        dimension = embeddings.shape[1]
-
-        self.index = faiss.IndexFlatL2(
-            dimension
+        self.index = (
+            faiss.IndexFlatIP(
+                dimension
+            )
         )
 
-        self.index.add(embeddings)
-
-    def retrieve(self, query, k=3):
-
-        query_embedding = self.embedding_model.encode(
-            [query],
-            convert_to_numpy=True
+        self.index.add(
+            embeddings
         )
 
-        query_embedding = query_embedding.astype(
-            np.float32
+    def retrieve(
+        self,
+        query,
+        k=4,
+    ):
+
+        query_embedding = (
+            self.embedding_model.encode(
+                [query],
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+            )
+            .astype(
+                np.float32
+            )
         )
 
-        distances, indices = self.index.search(
-            query_embedding,
-            k
+        scores, indices = (
+            self.index.search(
+                query_embedding,
+                min(
+                    k,
+                    len(
+                        self.documents
+                    ),
+                ),
+            )
         )
 
         results = []
 
-        for index in indices[0]:
+        for score, index in zip(
+            scores[0],
+            indices[0],
+        ):
 
-            if index < len(self.documents):
+            if index < 0:
+                continue
 
-                results.append(
-                    self.documents[index]
-                )
+            document = dict(
+                self.documents[index]
+            )
+
+            document["score"] = float(
+                score
+            )
+
+            results.append(
+                document
+            )
 
         return results

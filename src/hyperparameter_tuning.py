@@ -1,119 +1,160 @@
+import json
+from pathlib import Path
+
+import numpy as np
 import optuna
-import pandas as pd
+
+from sklearn.model_selection import (
+    KFold,
+    cross_val_score,
+)
 
 from xgboost import XGBRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
 
 
-FEATURES = [
-    "Rooms",
-    "Distance",
-    "Bedroom2",
-    "Bathroom",
-    "Car",
-    "Landsize",
-    "BuildingArea"
-]
+def tune_xgboost(
+    X,
+    y,
+    n_trials=30,
+    random_state=42,
+    save_path=None,
+):
 
-TARGET = "Price"
+    """
+    Tune XGBoost using cross-validation.
 
+    IMPORTANT:
+    Only training data should be passed to this function.
+    """
 
-def load_data(data_path):
-    df = pd.read_csv(data_path)
+    X = np.asarray(X)
+    y = np.asarray(y)
 
-    df = df[FEATURES + [TARGET]].dropna()
+    cv = KFold(
+        n_splits=3,
+        shuffle=True,
+        random_state=random_state,
+    )
 
-    X = df[FEATURES]
-    y = df[TARGET]
+    def objective(trial):
 
-    return X, y
+        params = {
 
+            "n_estimators":
+                trial.suggest_int(
+                    "n_estimators",
+                    200,
+                    1000,
+                ),
 
-def objective(trial, X_train, y_train, X_valid, y_valid):
+            "max_depth":
+                trial.suggest_int(
+                    "max_depth",
+                    3,
+                    10,
+                ),
 
-    params = {
-        "n_estimators": trial.suggest_int(
-            "n_estimators", 200, 1000
-        ),
+            "learning_rate":
+                trial.suggest_float(
+                    "learning_rate",
+                    0.01,
+                    0.3,
+                    log=True,
+                ),
 
-        "max_depth": trial.suggest_int(
-            "max_depth", 3, 12
-        ),
+            "subsample":
+                trial.suggest_float(
+                    "subsample",
+                    0.6,
+                    1.0,
+                ),
 
-        "learning_rate": trial.suggest_float(
-            "learning_rate", 0.01, 0.3, log=True
-        ),
+            "colsample_bytree":
+                trial.suggest_float(
+                    "colsample_bytree",
+                    0.6,
+                    1.0,
+                ),
 
-        "subsample": trial.suggest_float(
-            "subsample", 0.6, 1.0
-        ),
+            "min_child_weight":
+                trial.suggest_int(
+                    "min_child_weight",
+                    1,
+                    10,
+                ),
 
-        "colsample_bytree": trial.suggest_float(
-            "colsample_bytree", 0.6, 1.0
-        ),
+            "reg_alpha":
+                trial.suggest_float(
+                    "reg_alpha",
+                    1e-8,
+                    10.0,
+                    log=True,
+                ),
 
-        "min_child_weight": trial.suggest_int(
-            "min_child_weight", 1, 10
-        ),
+            "reg_lambda":
+                trial.suggest_float(
+                    "reg_lambda",
+                    1e-8,
+                    10.0,
+                    log=True,
+                ),
+        }
 
-        "reg_alpha": trial.suggest_float(
-            "reg_alpha", 1e-8, 10.0, log=True
-        ),
-
-        "reg_lambda": trial.suggest_float(
-            "reg_lambda", 1e-8, 10.0, log=True
+        model = XGBRegressor(
+            **params,
+            objective="reg:squarederror",
+            random_state=random_state,
+            n_jobs=-1,
         )
-    }
 
-    model = XGBRegressor(
-        **params,
-        random_state=42,
-        objective="reg:squarederror"
-    )
+        scores = cross_val_score(
+            model,
+            X,
+            y,
+            cv=cv,
+            scoring="neg_root_mean_squared_error",
+            n_jobs=-1,
+        )
 
-    model.fit(X_train, y_train)
-
-    predictions = model.predict(X_valid)
-
-    rmse = mean_squared_error(
-        y_valid,
-        predictions
-    ) ** 0.5
-
-    return rmse
-
-
-def tune_xgboost(data_path, n_trials=50):
-
-    X, y = load_data(data_path)
-
-    X_train, X_valid, y_train, y_valid = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42
-    )
+        return -float(
+            np.mean(scores)
+        )
 
     study = optuna.create_study(
-        direction="minimize"
+        direction="minimize",
+        study_name="housing_xgboost",
     )
 
     study.optimize(
-        lambda trial: objective(
-            trial,
-            X_train,
-            y_train,
-            X_valid,
-            y_valid
-        ),
-        n_trials=n_trials
+        objective,
+        n_trials=n_trials,
     )
 
-    print("Best parameters:")
-    print(study.best_params)
+    best_params = (
+        study.best_params.copy()
+    )
 
-    print("Best RMSE:")
-    print(study.best_value)
+    if save_path:
 
-    return study.best_params
+        output = Path(
+            save_path
+        )
+
+        output.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        output.write_text(
+            json.dumps(
+                best_params,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    return (
+        best_params,
+        study.best_value,
+        study,
+    )

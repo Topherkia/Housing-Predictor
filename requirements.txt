@@ -1,14 +1,23 @@
-#pip install these:
 pandas
 numpy
 scikit-learn
 xgboost
 streamlit
 folium
-# Fine-tuning and model evaluation
+
+# Hyperparameter tuning
 optuna
+
+# Model explanation
 shap
+
+# RAG
 sentence-transformers
 faiss-cpu
+
+# Qwen / local LLM
 transformers
 torch
+
+# Optional utilities
+joblib

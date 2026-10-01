@@ -7,7 +7,7 @@ Usage:
 The program asks for a CSV path, validates the expected Melbourne
 housing columns, cleans missing/invalid values, and saves the result to:
 
-    ~/data/processed/<original_name>_processed.csv
+    <project root>/data/processed/<original_name>_processed.csv
 """
 
 from pathlib import Path
@@ -156,8 +156,10 @@ def process_csv(input_path, remove_high_prices=False):
     # Save inside the project: <project root>/data/processed/
     project_root = Path(__file__).resolve().parent
     output_dir = project_root / "data" / "processed"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
     output_file = output_dir / f"{input_file.stem}_processed.csv"
     df.to_csv(output_file, index=False)
     print("\n" + "=" * 60)
