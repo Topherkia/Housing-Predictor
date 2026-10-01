@@ -4,23 +4,25 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 
 class ClusterStage:
-    """Handles preprocessing, cleaning, and K-Means clustering on raw input data."""
+    """Handles preprocessing, cleaning, and K-Means clustering."""
     
-    def __init__(self, data_path: str, n_clusters: int = 3, random_state: int = 42):
+    def __init__(self, data_path: str = None, n_clusters: int = 3, random_state: int = 42):
         self.data_path = data_path
         self.n_clusters = n_clusters
         self.random_state = random_state
-        self.kmeans = None
-        self.scaler = None
+        self.kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state, n_init=10)
+        self.scaler = StandardScaler()
+        self.cluster_features = [
+            'Rooms', 'Bathroom', 'Car', 
+            'Landsize', 'BuildingArea', 'Distance'
+        ]
 
     def load_data(self) -> pd.DataFrame:
         return pd.read_csv(self.data_path)
 
-    def preprocess_and_cluster(self, df: pd.DataFrame = None):
-        if df is None:
-            df = self.load_data()
-        else:
-            df = df.copy()
+    def preprocess_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Cleans and imputes raw data prior to splitting."""
+        df = df.copy()
 
         # Standardize column names
         df.columns = df.columns.str.strip()
@@ -71,29 +73,28 @@ class ClusterStage:
         if 'YearBuilt' in df.columns and 'SaleYear' in df.columns:
             df['PropertyAge'] = (df['SaleYear'] - df['YearBuilt']).clip(lower=0)
 
-        # Clustering Stage
-        cluster_features = [
-            'Rooms', 'Bathroom', 'Car', 
-            'Landsize', 'BuildingArea', 'Distance'
-        ]
-        if 'Lattitude' in df.columns and 'Longtitude' in df.columns:
-            cluster_features.extend(['Lattitude', 'Longtitude'])
+        return df
 
-        valid_cluster_idx = df[cluster_features].dropna().index
-        X_cluster = df.loc[valid_cluster_idx, cluster_features]
+    def fit_transform_train(self, X_train: pd.DataFrame) -> pd.DataFrame:
+        """Fits StandardScaler & KMeans strictly on train features and adds Cluster column."""
+        X_train = X_train.copy()
+        features = [col for col in self.cluster_features if col in X_train.columns]
+        if 'Lattitude' in X_train.columns and 'Longtitude' in X_train.columns:
+            features.extend(['Lattitude', 'Longtitude'])
 
-        # Standardize & Fit KMeans
-        self.scaler = StandardScaler()
+        X_cluster = X_train[features]
         X_scaled = self.scaler.fit_transform(X_cluster)
+        X_train['Cluster'] = self.kmeans.fit_predict(X_scaled)
+        return X_train
 
-        self.kmeans = KMeans(n_clusters=self.n_clusters, random_state=self.random_state, n_init=10)
-        cluster_labels = self.kmeans.fit_predict(X_scaled)
+    def transform_test(self, X_test: pd.DataFrame) -> pd.DataFrame:
+        """Transforms test set using fitted StandardScaler & KMeans."""
+        X_test = X_test.copy()
+        features = [col for col in self.cluster_features if col in X_test.columns]
+        if 'Lattitude' in X_test.columns and 'Longtitude' in X_test.columns:
+            features.extend(['Lattitude', 'Longtitude'])
 
-        # Assign Cluster assignments back
-        df['Cluster'] = np.nan
-        df.loc[valid_cluster_idx, 'Cluster'] = cluster_labels
-        
-        df = df.dropna(subset=['Cluster']).reset_index(drop=True)
-        df['Cluster'] = df['Cluster'].astype(int)
-
-        return df, self.kmeans, self.scaler
+        X_cluster = X_test[features]
+        X_scaled = self.scaler.transform(X_cluster)
+        X_test['Cluster'] = self.kmeans.predict(X_scaled)
+        return X_test
