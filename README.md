@@ -232,51 +232,64 @@ In the Streamlit app the map is connected to the ML pipeline:
 
 ---
 
-# 🧠 Project Architecture
+# 🧠 AI-Enhanced Architecture
 
-The project separates the machine learning components into individual modules.
+The project now combines traditional machine learning with
+hyperparameter optimization, explainable AI, retrieval-augmented
+generation and a local Qwen language model.
 
 ```text
-                     ┌──────────────────────┐
-                     │     CSV Dataset      │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Feature Filtering   │
-                     │  & Data Cleaning     │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │       K-Means        │
-                     │      Clustering      │
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Map HTML Generation │
-                     │  (MapGenerator Class)│
-                     └──────────┬───────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │  Regression Pipeline │
-                     └──────────┬───────────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │        │        │        │        │
-              ▼        ▼        ▼        ▼        ▼
-           Linear   Decision  Random   Gradient  XGBoost
-          Regression  Tree    Forest   Boosting
-              │        │        │        │        │
-              └────────┴────────┴────────┴────────┘
-                                │
-                                ▼
-                     ┌──────────────────────┐
-                     │   Model Evaluation   │
-                     │    MAE / RMSE / R²   │
-                     └──────────────────────┘
+                         CSV Dataset
+                              │
+                              ▼
+                       Data Processing
+                              │
+                              ▼
+                       Train/Test Split
+                         /          \
+                        /            \
+                       ▼              ▼
+              Training Data       Test Data
+                    │                 │
+                    ▼                 │
+             K-Means Fitting         │
+                    │                 │
+                    ▼                 │
+              Preprocessing          │
+                    │                 │
+                    ▼                 │
+             Optuna XGBoost           │
+                    │                 │
+                    ▼                 │
+             Tuned XGBoost            │
+                    │                 │
+                    └──────┬──────────┘
+                           │
+                           ▼
+                    Model Evaluation
+                     MAE / RMSE / R²
+                           │
+                           ▼
+                         SHAP
+                           │
+                           │
+User ──► Qwen ─────────────┤
+        │                  │
+        │                  ▼
+        │             XGBoost
+        │                  │
+        ▼                  ▼
+       RAG              Prediction
+        │                  │
+        └────────┬─────────┘
+                 ▼
+               Qwen
+                 │
+                 ▼
+        AI Housing Explanation
+                 │
+                 ▼
+             Streamlit
 ```
 
 ---
