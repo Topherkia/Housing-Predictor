@@ -294,6 +294,35 @@ User ──► Qwen ─────────────┤
 
 ---
 
+# 🤖 AI Housing Assistant
+
+The project includes an optional AI housing assistant combining:
+
+- Qwen
+- XGBoost
+- SHAP
+- RAG
+- FAISS
+- Sentence Transformers
+
+The user can enter a natural-language request such as:
+
+> Estimate the price of a 4 bedroom property with 2 bathrooms and 600 square metres of land.
+
+Qwen extracts structured features:
+
+```json
+{
+    "Rooms": 4,
+    "Distance": null,
+    "Bedroom2": null,
+    "Bathroom": 2,
+    "Car": null,
+    "Landsize": 600,
+    "BuildingArea": null
+}
+
+---
 
 # 📌 Notes
 
