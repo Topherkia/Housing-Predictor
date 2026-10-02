@@ -376,7 +376,6 @@ Housing-Predictor/
 │   └── tuned_xgboost.py
 ├── LICENSE
 ├── README.md
-├── README2.md
 ├── app.py
 ├── requirements.txt
 ├── data_processor.py
