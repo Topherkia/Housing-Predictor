@@ -344,8 +344,6 @@ A typical project structure is:
 Housing-Predictor/
 ├── Docs
 │   └── Melbourne_housing 2.csv
-├── __pycache__
-│   └── test_ai_assistant.cpython-314-pytest-9.0.3.pyc
 ├── data
 │   ├── processed
 │   │   ├── melb_data_processed.csv
